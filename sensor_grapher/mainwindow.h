@@ -50,6 +50,8 @@ private slots:
     void on_connectButton_clicked();
 
 private:
+    const int maxcounts = 1000;
+
     Ui::MainWindow *ui;
 
     QSerialPort serial;

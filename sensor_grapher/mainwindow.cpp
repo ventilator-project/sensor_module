@@ -3,6 +3,7 @@
 
 #include <QSerialPortInfo>
 #include <QDebug>
+#include <QGLWidget>
 
 #include <cmath>
 
@@ -19,6 +20,12 @@ MainWindow::MainWindow(QWidget *parent)
     dataChart.axes().at(1)->setTitleText("Counts");
     dataChart.legend()->hide();
 
+    dataChart.axes().at(0)->setRange(0,maxcounts);
+
+    sensorData.setUseOpenGL(true);
+
+
+//    ui->vfbChartView->setViewport(new QGLWidget());
     ui->vfbChartView->setChart(&dataChart);
 //    ui->vfbChartView->setRenderHint(QPainter::Antialiasing);
 
@@ -65,8 +72,6 @@ MainWindow::MainWindow(QWidget *parent)
 
 void MainWindow::recordVfbPoint(uint16_t point)
 {
-    const int maxcounts = 1000;
-
     // Record the point
     if(sensorData.count() < maxcounts) {
         sensorData.append(sensorData.count(), point);
@@ -88,7 +93,6 @@ void MainWindow::recordVfbPoint(uint16_t point)
         yMax = fmax(yMax, point.y());
     }
 
-    dataChart.axes().at(0)->setRange(0,maxcounts);
     dataChart.axes().at(1)->setRange(floor(yMin),ceil(yMax));
 //    dataChart.axes().at(1)->setRange(0,((1<<11)-1));
 }
@@ -101,20 +105,26 @@ void MainWindow::handleData(char data)
         case 0: // SOF 1
             if(data == 0x55)
                 packet_buffer.append(data);
-            else
+            else {
+                qDebug() << "SOF1 error";
                 packet_buffer.clear();
+            }
         break;
     case 1: // SOF 2
         if(data == 0x55)
             packet_buffer.append(data);
-        else
+        else {
+            qDebug() << "SOF2 error";
             packet_buffer.clear();
+        }
         break;
     case 2: // version
         if(data == 0)
             packet_buffer.append(data);
-        else
+        else {
+            qDebug() << "Version error";
             packet_buffer.clear();
+        }
         break;
     case 3: // packet type
         packet_buffer.append(data);
@@ -133,8 +143,10 @@ void MainWindow::handleData(char data)
             packet_buffer.clear();
         }
 
-        if((packet_buffer.length()) > sizeof(message_packet_t))
+        if((packet_buffer.length()) > sizeof(message_packet_t)) {
+            qDebug() << "oversize error";
             packet_buffer.clear();
+        }
 
         break;
     }
