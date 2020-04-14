@@ -3,7 +3,6 @@
 
 #include <QSerialPortInfo>
 #include <QDebug>
-#include <QGLWidget>
 
 #include <cmath>
 
@@ -13,28 +12,56 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
-    dataChart.setTitle("VFB");
-    dataChart.addSeries(&sensorData);
-    dataChart.createDefaultAxes();
-    dataChart.axes().at(0)->setTitleText("Sample");
-    dataChart.axes().at(1)->setTitleText("Counts");
-    dataChart.legend()->hide();
+    vfbChart.setTitle("VFB");
+    vfbChart.addSeries(&vfbData);
+    vfbChart.createDefaultAxes();
+    vfbChart.axes().at(0)->setTitleText("Sample");
+    vfbChart.axes().at(1)->setTitleText("Counts");
+    vfbChart.legend()->hide();
 
-    dataChart.axes().at(0)->setRange(0,maxcounts);
+    vfbChart.axes().at(0)->setRange(0,maxcounts);
 
-    sensorData.setUseOpenGL(true);
+    vfbData.setUseOpenGL(true);
+
+    ui->vfbChartView->setChart(&vfbChart);
+    ui->vfbChartView->setRenderHint(QPainter::Antialiasing);
 
 
-//    ui->vfbChartView->setViewport(new QGLWidget());
-    ui->vfbChartView->setChart(&dataChart);
-//    ui->vfbChartView->setRenderHint(QPainter::Antialiasing);
+    temperatureChart.setTitle("Temperature");
+    temperatureChart.addSeries(&temperatureData);
+    temperatureChart.createDefaultAxes();
+    temperatureChart.axes().at(0)->setTitleText("Sample");
+    temperatureChart.axes().at(1)->setTitleText("Counts");
+    temperatureChart.legend()->hide();
+
+    temperatureChart.axes().at(0)->setRange(0,maxcounts);
+
+    temperatureData.setUseOpenGL(true);
+
+    ui->temperatureChartView->setChart(&temperatureChart);
+    ui->temperatureChartView->setRenderHint(QPainter::Antialiasing);
+
+
+    pressureChart.setTitle("Pressure");
+    pressureChart.addSeries(&pressureData);
+    pressureChart.createDefaultAxes();
+    pressureChart.axes().at(0)->setTitleText("Sample");
+    pressureChart.axes().at(1)->setTitleText("Counts");
+    pressureChart.legend()->hide();
+
+    pressureChart.axes().at(0)->setRange(0,maxcounts);
+
+    pressureData.setUseOpenGL(true);
+
+    ui->pressureChartView->setChart(&pressureChart);
+    ui->pressureChartView->setRenderHint(QPainter::Antialiasing);
+
+
 
     serial.setBaudRate(QSerialPort::Baud115200);
     serial.setDataBits(QSerialPort::Data8);
     serial.setParity(QSerialPort::NoParity);
     serial.setStopBits(QSerialPort::OneStop);
-//    serial.setPortName("/dev/ttyACM1");
-//    serial.open(QIODevice::ReadWrite);
 
     connect(&serial, &QSerialPort::readyRead,
             this, &MainWindow::readyRead);
@@ -70,30 +97,45 @@ MainWindow::MainWindow(QWidget *parent)
     portScanner.start(1000);
 }
 
-void MainWindow::recordVfbPoint(uint16_t point)
+void MainWindow::recordPoint(double point, QLineSeries &series, QChart &chart)
 {
+//    const int average_count = 5;
+
+//    static int count = 0;
+//    static float val = 0;
+
+//    val += point;
+//    count++;
+
+//    if(count < average_count)
+//        return;
+
+//    point = val/average_count;
+//    val = 0;
+//    count = 0;
+
     // Record the point
-    if(sensorData.count() < maxcounts) {
-        sensorData.append(sensorData.count(), point);
+    if(series.count() < maxcounts) {
+        series.append(series.count(), point);
     }
     else {
-        QList<QPointF> points = sensorData.points();
+        QList<QPointF> points = series.points();
         points.removeFirst();
         for(QPointF &point : points)
             point.setX(point.x()-1);
-        points.append(QPointF(sensorData.count(), point));
-        sensorData.replace(points);
+        points.append(QPointF(series.count(), point));
+        series.replace(points);
     }
 
     qreal yMax = std::numeric_limits<qreal>::min();
     qreal yMin = std::numeric_limits<qreal>::max();
 
-    for(const auto &point : sensorData.points()) {
+    for(const auto &point : series.points()) {
         yMin = fmin(yMin, point.y());
         yMax = fmax(yMax, point.y());
     }
 
-    dataChart.axes().at(1)->setRange(floor(yMin),ceil(yMax));
+    chart.axes().at(1)->setRange(floor(yMin/10)*10,ceil(yMax/10)*10);
 //    dataChart.axes().at(1)->setRange(0,((1<<11)-1));
 }
 
@@ -138,7 +180,12 @@ void MainWindow::handleData(char data)
 
             // TODO: CRC
 
-            recordVfbPoint(packet->vfb);
+            const double temperature = packet->temperature / 100.0; // temperature is in 1/100s of a C
+            const double pressure = packet->pressure / 100.0; // pressure is pascals
+
+            recordPoint(packet->vfb, vfbData ,vfbChart);
+            recordPoint(temperature, temperatureData ,temperatureChart);
+            recordPoint(pressure, pressureData ,pressureChart);
 
             packet_buffer.clear();
         }

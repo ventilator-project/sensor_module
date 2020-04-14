@@ -27,8 +27,8 @@ typedef struct {
     uint8_t version; // 0
     uint8_t type; // Packet type: 0
     uint16_t vfb; // ADC value
-    uint16_t pressure;
-    uint16_t temperature;
+    uint32_t pressure;
+    uint32_t temperature;
     uint16_t crc; // TODO
 } PACKED message_packet_t;
 #ifdef _MSC_VER
@@ -50,16 +50,23 @@ private slots:
     void on_connectButton_clicked();
 
 private:
-    const int maxcounts = 1000;
+    const int maxcounts = 500;
 
     Ui::MainWindow *ui;
 
     QSerialPort serial;
 
-    QChart dataChart;                   //!< Chart for showing live sensor data
-    QLineSeries sensorData;             //!< Most current data series from the sensor
+    QChart vfbChart;                   //!< Chart for showing live sensor data
+    QLineSeries vfbData;             //!< Most current data series from the sensor
+
+    QChart pressureChart;
+    QLineSeries pressureData;
+
+    QChart temperatureChart;
+    QLineSeries temperatureData;
+
     void handleData(char data);
-    void recordVfbPoint(uint16_t point);
+    void recordPoint(double point, QLineSeries &series, QChart &chart);
 
     QTimer portScanner;
 };
