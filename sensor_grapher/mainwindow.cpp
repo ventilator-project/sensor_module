@@ -1,10 +1,9 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
-
 #include <QSerialPortInfo>
 #include <QDebug>
-
 #include <cmath>
+#include "crc16_modbus.h"
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -31,7 +30,7 @@ MainWindow::MainWindow(QWidget *parent)
     temperatureChart.addSeries(&temperatureData);
     temperatureChart.createDefaultAxes();
     temperatureChart.axes().at(0)->setTitleText("Sample");
-    temperatureChart.axes().at(1)->setTitleText("Counts");
+    temperatureChart.axes().at(1)->setTitleText("°C");
     temperatureChart.legend()->hide();
 
     temperatureChart.axes().at(0)->setRange(0,maxcounts);
@@ -46,7 +45,7 @@ MainWindow::MainWindow(QWidget *parent)
     pressureChart.addSeries(&pressureData);
     pressureChart.createDefaultAxes();
     pressureChart.axes().at(0)->setTitleText("Sample");
-    pressureChart.axes().at(1)->setTitleText("Counts");
+    pressureChart.axes().at(1)->setTitleText("mbar");
     pressureChart.legend()->hide();
 
     pressureChart.axes().at(0)->setRange(0,maxcounts);
@@ -169,28 +168,41 @@ void MainWindow::handleData(char data)
         }
         break;
     case 3: // packet type
-        packet_buffer.append(data);
+        if(data == 0)
+            packet_buffer.append(data);
+        else {
+            qDebug() << "Packet type error";
+            packet_buffer.clear();
+        }
         break;
     default:
         packet_buffer.append(data);
 
         // Note: Packet type set in packet[3], but we only handle one type.
         if((packet_buffer.length()) == sizeof(message_packet_t)) {
+
             message_packet_t *packet = (message_packet_t*)packet_buffer.data();
 
-            // TODO: CRC
+            const uint16_t crc_received = packet->crc;
+            packet->crc = 0;
+            const uint16_t crc_calculated = crc16_modbus((uint8_t*)packet_buffer.data(), sizeof(message_packet_t));
 
-            const double temperature = packet->temperature / 100.0; // temperature is in 1/100s of a C
-            const double pressure = packet->pressure / 100.0; // pressure is pascals
+            if(crc_received != crc_calculated) {
+                qDebug() << "Bad CRC, got:" << crc_received << " expected:" << crc_calculated;
+                packet_buffer.clear();
+            }
+            else {
+                const double temperature = packet->temperature / 100.0; // temperature is in 1/100s of a C
+                const double pressure = packet->pressure / 100.0; // pressure is pascals
 
-            recordPoint(packet->vfb, vfbData ,vfbChart);
-            recordPoint(temperature, temperatureData ,temperatureChart);
-            recordPoint(pressure, pressureData ,pressureChart);
+                recordPoint(packet->vfb, vfbData ,vfbChart);
+                recordPoint(temperature, temperatureData ,temperatureChart);
+                recordPoint(pressure, pressureData ,pressureChart);
 
-            packet_buffer.clear();
+                packet_buffer.clear();
+            }
         }
-
-        if((packet_buffer.length()) > sizeof(message_packet_t)) {
+        else if((packet_buffer.length()) > sizeof(message_packet_t)) {
             qDebug() << "oversize error";
             packet_buffer.clear();
         }
