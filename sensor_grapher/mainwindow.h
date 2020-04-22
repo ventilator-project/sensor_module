@@ -27,6 +27,7 @@ typedef struct {
     uint8_t version; // 0
     uint8_t type; // Packet type: 0
     uint16_t vfb; // ADC value
+    uint32_t airflow;
     uint32_t pressure;
     uint32_t temperature;
     uint16_t crc; // TODO
